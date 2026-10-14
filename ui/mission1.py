@@ -1,0 +1,91 @@
+from pathlib import Path
+
+import streamlit as st
+
+
+ASSET_DIR = Path(__file__).resolve().parent.parent / "images"
+
+
+def _complete_mission1() -> None:
+    st.session_state.mission1_completed = True
+    st.session_state.current_page = "MISSION2"
+
+
+def render_mission1() -> None:
+    st.header("MISSION1: 부개연구소에서")
+    st.write(
+        "우주 탐사선에 탑승하기 전, 당신은 부개연구소의 우주 비행 사전 교육 과정을 이수해야 합니다. "
+        "교육을 마치면 화성 탐사 임무를 수행할 준비가 완료됩니다.  \n"
+        "부개연구소의 교육 과정을 이수하십시오."
+    )
+
+    st.subheader("STEP1: 타원")
+    st.image(str(ASSET_DIR / "eclipse.png"), width=300)
+    st.markdown(
+        """
+        **타원**  
+        두 정점으로부터의 거리의 합이 장축으로 일정한 이차곡선.
+
+        **타원의 구성 요소**
+        - 긴 지름: 장축 (2a)
+        - 작은 지름: 단축 (2b)
+        - 꼭짓점 A, B, A', B'
+        - 초점 F, F'
+        """
+    )
+
+    st.subheader("STEP2: 이심률")
+    st.markdown(
+        """
+        **이심률**  
+        이차곡선에서 원뿔 곡선의 특성을 나타내는 값.  
+        원뿔 곡선이 원에서 벗어나는 정도를 나타낸다고 볼 수 있다.
+
+        **이차곡선과 이심률**
+        - e = 0: 원
+        - 0 < e < 1: 타원
+        - e = 1: 포물선
+        - e > 1: 쌍곡선
+        """
+    )
+
+    st.subheader("STEP3: 케플러 법칙")
+    st.image(str(ASSET_DIR / "kepler.png"), width=400)
+    st.markdown(
+        """
+        **케플러 법칙**
+        1. **제1법칙: 타원 궤도의 법칙**  
+           모든 행성은 태양을 한쪽 초점으로 하는 타원 궤도를 그리며 공전한다.
+        2. **제2법칙: 면적속도 일정의 법칙**  
+           태양과 행성을 연결하는 선분이 같은 시간 동안 쓸고 지나가는 면적은 항상 일정하다.
+        3. **제3법칙: 조화의 법칙**  
+           행성의 공전 주기의 제곱은 궤도의 긴반지름의 세제곱에 비례한다.
+        """
+    )
+
+    st.subheader("STEP4: 호만 전이 궤도")
+    st.image(str(ASSET_DIR / "homann.png"), width=500)
+    st.markdown(
+        """
+        **호만 전이 궤도**  
+        두 원형 궤도 사이를 최소한의 추진제로 이동할 수 있는 효율적인 타원형 전이 궤도.
+        근일점은 지구 궤도의 거리에 위치하며, 원일점은 화성 궤도 거리에 위치함.
+
+        **지구-화성까지 호만 전이 궤도 메커니즘**
+
+        🚀 우주선이 발사대에 놓여 있음(근일점)  
+        → 🔥 로켓을 통해 가속  
+        → 원일점이 화성 궤도 거리에 위치하게 됨  
+        → 🪐 지구 대기권을 벗어나 호만 전이 궤도로 진입  
+        → ✨ 관성을 통해서 궤도를 따라 이동  
+        → 🔴 화성에 도착(원일점)
+        """
+    )
+
+    st.divider()
+    st.caption("이론 교육을 마쳤습니다. 이제 계산을 통해 전이 궤도를 설계합니다.")
+    st.button(
+        "교육 완료 · MISSION2 시작",
+        key="mission1_complete",
+        on_click=_complete_mission1,
+    )
