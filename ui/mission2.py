@@ -3,36 +3,20 @@ from pathlib import Path
 import streamlit as st
 
 from data.planets import EARTH_ORBIT_RADIUS_AU, PLANETS
-from logic.answer_checker import check_numeric_answer
 from logic.orbit_calculations import (
     focus_distance,
     semi_minor_axis,
     transfer_eccentricity,
     transfer_semi_major_axis,
 )
-from ui.orbit_plot import mission2_orbit_plot
+from ui.formula_problems import (
+    FormulaInput,
+    render_formula_problem,
+)
+from ui.orbit_plot import mission2_orbit_simulation
 
 
 ASSET_DIR = Path(__file__).resolve().parent.parent / "images"
-
-HINTS = {
-    "m2_a": (
-        "두 궤도 반지름을 더한 뒤 2로 나눕니다.",
-        "r₁ + r₂를 계산한 다음 그 결과를 2로 나눠 보세요.",
-        "장반경 공식은 a = (r₁ + r₂) / 2 입니다.",
-    ),
-    "m2_e": (
-        "이심률은 두 반지름의 차이를 이용합니다.",
-        "분자는 r₂ - r₁, 분모는 r₂ + r₁ 입니다.",
-        "e = (r₂ - r₁) / (r₂ + r₁) 공식을 적용하세요.",
-    ),
-    "m2_c": (
-        "초점 거리는 장반경과 이심률을 이용합니다.",
-        "저장된 a와 e를 곱하면 됩니다.",
-        "c = a × e 입니다.",
-    ),
-}
-
 
 def _complete_mission2() -> None:
     planet = PLANETS[st.session_state.selected_planet]
@@ -45,6 +29,14 @@ def _complete_mission2() -> None:
         "focus_distance_au": st.session_state.m2_c,
     }
     st.session_state.current_page = "MISSION3"
+
+
+def _eccentricity_from_radii(values: dict[str, float]) -> float:
+    if values["r_p"] <= values["r_e"]:
+        raise ValueError("목적 행성의 궤도 반지름은 지구 궤도 반지름보다 커야 합니다.")
+    return (values["r_p"] - values["r_e"]) / (
+        values["r_p"] + values["r_e"]
+    )
 
 
 def _on_planet_change() -> None:
@@ -63,35 +55,85 @@ def _on_planet_change() -> None:
         "mission2_semi_major_input",
         "mission2_eccentricity_input",
         "mission2_focus_input",
+        "m2_a_r_e_input",
+        "m2_a_r_p_input",
+        "m2_a_formula_input",
+        "m2_e_r_p_input",
+        "m2_e_r_e_input",
+        "m2_e_formula_input",
+        "m2_c_a_input",
+        "m2_c_e_input",
+        "m2_c_formula_input",
         "mission3_time_years_input",
         "mission3_time_days_input",
         "mission3_omega_input",
         "mission3_theta_input",
         "mission3_phase_input",
+        "mission3_time_years_saved",
+        "mission3_time_days_saved",
+        "mission3_omega_saved",
+        "mission3_theta_saved",
+        "mission3_phase_saved",
+        "m3_time_years_a_input",
+        "m3_time_days_years_input",
+        "m3_time_days_days_per_year_input",
+        "m3_omega_period_input",
+        "m3_travel_angle_omega_input",
+        "m3_travel_angle_days_input",
+        "m3_phase_angle_travel_angle_input",
+        "m3_time_years_formula_input",
+        "m3_time_days_formula_input",
+        "m3_omega_formula_input",
+        "m3_travel_angle_formula_input",
+        "m3_phase_angle_formula_input",
+        "m4_arrival_speed",
+        "m4_arrival_speed_saved",
+        "m4_arrival_speed_input",
+        "m4_arrival_speed_submit",
+        "m4_arrival_speed_mu_input",
+        "m4_arrival_speed_radius_input",
+        "m4_arrival_speed_axis_input",
+        "m4_arrival_speed_formula_input",
+        "m4_planet_speed",
+        "m4_planet_speed_saved",
+        "m4_planet_speed_input",
+        "m4_planet_speed_submit",
+        "m4_planet_speed_mu_input",
+        "m4_planet_speed_radius_input",
+        "m4_planet_speed_formula_input",
+        "m4_excess_speed",
+        "m4_excess_speed_saved",
+        "m4_excess_speed_input",
+        "m4_excess_speed_submit",
+        "m4_excess_speed_spacecraft_input",
+        "m4_excess_speed_planet_input",
+        "m4_excess_speed_formula_input",
+        "m4_altitude_selection",
+        "m4_confirm_altitude",
+        "m4_confirm_altitude_disabled",
+        "m4_selected_altitude_km",
+        "m4_closest_distance_km",
+        "m4_step2_complete",
+        "m4_eccentricity",
+        "m4_eccentricity_saved",
+        "m4_eccentricity_input",
+        "m4_eccentricity_submit",
+        "m4_eccentricity_distance_input",
+        "m4_eccentricity_speed_input",
+        "m4_eccentricity_mu_input",
+        "m4_eccentricity_formula_input",
+        "m4_deflection_angle",
+        "m4_deflection_angle_saved",
+        "m4_deflection_angle_input",
+        "m4_deflection_angle_submit",
+        "m4_deflection_angle_eccentricity_input",
+        "m4_deflection_angle_formula_input",
+        "m4_complete",
     ):
         st.session_state.pop(key, None)
+    st.session_state.pop("mission2_saved_answers", None)
     st.session_state.hint_counts = {}
     st.session_state.selected_planet = st.session_state.planet_select
-
-
-def _submit_answer(
-    key: str,
-    answer: float,
-    expected: float,
-    tolerance: float,
-    success_message: str,
-) -> None:
-    if check_numeric_answer(answer, expected, tolerance):
-        st.session_state[key] = expected
-        st.session_state.hint_counts.pop(key, None)
-        st.success(success_message)
-        st.rerun()
-
-    hint_counts = st.session_state.setdefault("hint_counts", {})
-    attempts = hint_counts.get(key, 0) + 1
-    hint_counts[key] = attempts
-    st.error("계산값을 다시 확인해 주세요.")
-    st.info(HINTS[key][min(attempts - 1, len(HINTS[key]) - 1)])
 
 
 def render_mission2() -> None:
@@ -139,106 +181,145 @@ def render_mission2() -> None:
         st.caption("태양은 전이 타원의 중심이 아니라 초점에 위치합니다.")
 
     st.subheader("STEP 1 · 전이 궤도 장반경")
-    st.latex(r"a = \frac{r_E + r_P}{2}")
-    st.markdown(
-        """
-        - **a**: 전이 타원의 긴반지름 (**AU**)
-        - **r_E**: 태양에서 지구까지의 평균 거리 (**AU**)
-        - **r_P**: 태양에서 선택한 행성까지의 평균 거리 (**AU**)
-        """
-    )
-    with st.form("mission2_step1"):
-        answer_a = st.number_input(
-            "장반경 a (AU)",
-            min_value=0.0,
-            step=0.01,
-            format="%.4f",
-            key="mission2_semi_major_input",
-        )
-        submit_a = st.form_submit_button("장반경 확인", key="mission2_step1_submit")
-    if submit_a:
-        _submit_answer(
-            "m2_a",
-            answer_a,
-            transfer_semi_major_axis(planet),
-            0.01,
-            "정답입니다. 장반경을 다음 단계에 사용합니다.",
-        )
-
-    if "m2_a" not in st.session_state:
+    if not render_formula_problem(
+        key="m2_a",
+        title="전이 타원의 장반경 계산",
+        formula=r"a = \frac{r_E + r_P}{2}",
+        formula_layout="""
+            <span>a = </span>
+            <span class="formula-fraction">
+                <span class="formula-numerator">
+                    <span data-formula-slot="r_e"></span> +
+                    <span data-formula-slot="r_p"></span>
+                </span>
+                <span class="formula-denominator">2</span>
+            </span>
+        """,
+        inputs=(
+            FormulaInput(
+                "r_e", "지구 궤도 반지름 r_E", EARTH_ORBIT_RADIUS_AU,
+                "AU", "%.4f", strictly_positive=True,
+            ),
+            FormulaInput(
+                "r_p", "행성 궤도 반지름 r_P", planet.orbit_radius_au,
+                "AU", "%.4f", strictly_positive=True,
+            ),
+        ),
+        calculate=lambda values: (values["r_e"] + values["r_p"]) / 2,
+        expected=transfer_semi_major_axis(planet),
+        tolerance=0.01,
+        result_label="계산 결과 a",
+        result_unit="AU",
+        success_message="정답입니다. 장반경을 다음 단계에 사용합니다.",
+        hints=(
+            "두 입력 반지름을 더한 다음 2로 나누세요.",
+            "a = (r_E + r_P) / 2 입니다.",
+        ),
+    ):
         return
 
+    st.success(f"전이 궤도 장반경 a: {st.session_state.m2_a:.4f} AU")
     st.subheader("STEP 2-1 · 전이 궤도 이심률")
-    st.latex(r"e = \frac{r_P - r_E}{r_P + r_E}")
-    st.markdown(
-        """
-        - **e**: 전이 타원의 이심률 (**단위 없음**)
-        - **r_P**: 태양에서 선택한 행성까지의 평균 거리 (**AU**)
-        - **r_E**: 태양에서 지구까지의 평균 거리 (**AU**)
-        """
-    )
-    with st.form("mission2_step2"):
-        answer_e = st.number_input(
-            "이심률 e",
-            min_value=0.0,
-            max_value=1.0,
-            step=0.01,
-            format="%.5f",
-            key="mission2_eccentricity_input",
-        )
-        submit_e = st.form_submit_button("이심률 확인", key="mission2_step2_submit")
-    if submit_e:
-        _submit_answer(
-            "m2_e",
-            answer_e,
-            transfer_eccentricity(planet),
-            0.01,
-            "정답입니다. 전이 타원의 이심률을 저장했습니다.",
-        )
-
-    if "m2_e" not in st.session_state:
+    if not render_formula_problem(
+        key="m2_e",
+        title="전이 타원의 이심률 계산",
+        formula=r"e = \frac{r_P - r_E}{r_P + r_E}",
+        formula_layout="""
+            <span>e = </span>
+            <span class="formula-fraction">
+                <span class="formula-numerator">
+                    <span data-formula-slot="r_p"></span> −
+                    <span data-formula-slot="r_e"></span>
+                </span>
+                <span class="formula-denominator">
+                    <span data-formula-slot="r_p"></span> +
+                    <span data-formula-slot="r_e"></span>
+                </span>
+            </span>
+        """,
+        inputs=(
+            FormulaInput(
+                "r_p", "행성 궤도 반지름 r_P", planet.orbit_radius_au,
+                "AU", "%.4f", strictly_positive=True,
+            ),
+            FormulaInput(
+                "r_e", "지구 궤도 반지름 r_E", EARTH_ORBIT_RADIUS_AU,
+                "AU", "%.4f", strictly_positive=True,
+            ),
+        ),
+        calculate=_eccentricity_from_radii,
+        expected=transfer_eccentricity(planet),
+        tolerance=0.01,
+        result_label="계산 결과 e",
+        result_unit="",
+        success_message="정답입니다. 전이 타원의 이심률을 저장했습니다.",
+        hints=(
+            "분자는 r_P - r_E, 분모는 r_P + r_E 입니다.",
+            "e = (r_P - r_E) / (r_P + r_E) 입니다.",
+        ),
+    ):
         return
 
+    st.success(f"전이 궤도 이심률 e: {st.session_state.m2_e:.5f}")
     st.subheader("STEP 2-2 · 초점 거리")
-    st.latex(r"c = a \times e")
-    st.markdown(
-        """
-        - **c**: 타원의 중심에서 초점까지의 거리 (**AU**)
-        - **a**: 전이 타원의 긴반지름 (**AU**)
-        - **e**: 전이 타원의 이심률 (**단위 없음**)
-        """
+    expected_focus = focus_distance(
+        st.session_state.m2_a,
+        st.session_state.m2_e,
     )
-    with st.form("mission2_step3"):
-        answer_c = st.number_input(
-            "초점 거리 c (AU)",
-            min_value=0.0,
-            step=0.01,
-            format="%.4f",
-            key="mission2_focus_input",
-        )
-        submit_c = st.form_submit_button("초점 거리 확인", key="mission2_step3_submit")
-    if submit_c:
-        _submit_answer(
-            "m2_c",
-            answer_c,
-            focus_distance(st.session_state.m2_a, st.session_state.m2_e),
-            0.01,
-            "정답입니다. 타원 궤도를 확인할 수 있습니다.",
-        )
-
-    if "m2_c" not in st.session_state:
+    if not render_formula_problem(
+        key="m2_c",
+        title="타원 중심에서 초점까지의 거리 계산",
+        formula=r"c = a \times e",
+        formula_layout="""
+            <span>c = </span>
+            <span data-formula-slot="a"></span>
+            <span>×</span>
+            <span data-formula-slot="e"></span>
+        """,
+        inputs=(
+            FormulaInput("a", "장반경 a", st.session_state.m2_a, "AU", "%.4f", strictly_positive=True),
+            FormulaInput("e", "이심률 e", st.session_state.m2_e, "", "%.5f", strictly_positive=True),
+        ),
+        calculate=lambda values: focus_distance(values["a"], values["e"]),
+        expected=expected_focus,
+        tolerance=0.01,
+        result_label="계산 결과 c",
+        result_unit="AU",
+        success_message="정답입니다. 타원 궤도를 확인할 수 있습니다.",
+        hints=(
+            "장반경 a와 이심률 e를 곱하세요.",
+            "c = a × e 입니다.",
+        ),
+    ):
         return
 
-    st.subheader("STEP 2-3 · 전이 타원 확인")
-    semi_minor = semi_minor_axis(st.session_state.m2_a, st.session_state.m2_e)
-    st.write(
-        f"반단축 b = {semi_minor:.4f} AU · 초점 거리 c = "
-        f"{st.session_state.m2_c:.4f} AU"
-    )
-    st.pyplot(mission2_orbit_plot(planet))
+    st.success(f"초점 거리 c: {st.session_state.m2_c:.4f} AU")
+    with st.container(border=True):
+        st.subheader("STEP 2-3 · 전이 타원 확인")
+        semi_minor = semi_minor_axis(st.session_state.m2_a, st.session_state.m2_e)
+        st.write(
+            f"반단축 b = {semi_minor:.4f} AU · 초점 거리 c = "
+            f"{st.session_state.m2_c:.4f} AU"
+        )
+        st.plotly_chart(
+            mission2_orbit_simulation(
+                planet,
+                st.session_state.m2_a,
+                st.session_state.m2_e,
+                st.session_state.m2_c,
+                semi_minor,
+            ),
+            key="mission2_orbit_simulation",
+            alt=f"지구에서 {planet.name}까지 계산된 호만 전이 궤도와 우주선 이동",
+        )
+        st.caption(
+            "행성의 표시 궤도 반지름은 평균 거리의 근삿값입니다. 행성 위치는 전이 시간에 맞춘 "
+            "이상화된 원궤도 모형이며 실시간 실제 위치가 아닙니다. 천체 이미지는 가독성을 위해 "
+            "확대되어 실제 크기 비율과 다릅니다."
+        )
 
-    st.button(
-        "MISSION 2 궤도 확인 완료",
-        key="mission2_complete_button",
-        on_click=_complete_mission2,
-    )
+        st.button(
+            "MISSION 2 궤도 확인 완료",
+            key="mission2_complete_button",
+            on_click=_complete_mission2,
+        )
