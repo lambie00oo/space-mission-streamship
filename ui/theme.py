@@ -40,6 +40,24 @@ def apply_theme() -> None:
             border-color: #315575;
             border-radius: 0.75rem;
         }
+        .st-key-mission2-conditions {
+            background: #d8c09a;
+            border: 1px solid #b99a6d;
+            border-radius: 0.75rem;
+            color: #17283d;
+            padding: 0.75rem 1rem;
+        }
+        .st-key-mission-card .st-key-mission2-conditions [data-testid="stHeading"] h3 {
+            background: transparent;
+            border-left: 0;
+            color: #17283d;
+            margin-top: 0;
+            padding: 0;
+        }
+        .st-key-mission2-conditions [data-testid="stMarkdownContainer"],
+        .st-key-mission2-conditions [data-testid="stMarkdownContainer"] p {
+            color: #17283d;
+        }
         .st-key-planet-selection-mars [data-testid="stImage"] img,
         .st-key-planet-selection-jupiter [data-testid="stImage"] img,
         .st-key-planet-selection-saturn [data-testid="stImage"] img {

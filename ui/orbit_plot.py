@@ -223,9 +223,10 @@ def _planet_image_data_uri(body_name: str) -> str | None:
 
 def _simulation_image_layout(
     positions: dict[str, tuple[float, float]],
+    body_names: tuple[str, ...],
 ) -> list[dict[str, object]]:
     images: list[dict[str, object]] = []
-    for body_name in SIMULATION_BODY_IMAGES:
+    for body_name in ("태양", *body_names):
         source = _planet_image_data_uri(body_name)
         if source is None:
             continue
@@ -243,10 +244,25 @@ def _simulation_image_layout(
                 "sizex": width,
                 "sizey": height,
                 "sizing": "contain",
-                "layer": "above",
+                "layer": "below",
             }
         )
     return images
+
+
+def _simulation_title(
+    planet_name: str,
+    elapsed_years: float,
+    transfer_duration_years: float,
+) -> str:
+    elapsed_days = elapsed_years * DAYS_PER_YEAR
+    transfer_duration_days = transfer_duration_years * DAYS_PER_YEAR
+    return (
+        f"지구에서 {planet_name}으로의 호만 전이 궤도 시뮬레이션"
+        f"<br><sup>전이 시간: {elapsed_days:.1f} / "
+        f"{transfer_duration_days:.1f}일 "
+        f"({elapsed_years:.3f} / {transfer_duration_years:.3f}년)</sup>"
+    )
 
 
 def mission2_orbit_simulation(
@@ -272,16 +288,21 @@ def mission2_orbit_simulation(
     if planet.name not in SIMULATION_ORBIT_RADII_AU:
         raise ValueError(f"시뮬레이션에 등록되지 않은 행성입니다: {planet.name}")
 
-    frame_count = 61
+    frame_count = 121
     circle_angles = [2 * math.pi * index / 360 for index in range(361)]
-    transfer_x = [
-        semi_major_axis_au * math.cos(angle) - focus_distance_au
-        for angle in circle_angles
+    transfer_eccentric_anomalies = [
+        math.pi * index / (frame_count - 1)
+        for index in range(frame_count)
     ]
-    transfer_y = [
-        semi_minor_axis_au * math.sin(angle)
-        for angle in circle_angles
+    transfer_path = [
+        (
+            semi_major_axis_au * math.cos(anomaly) - focus_distance_au,
+            semi_minor_axis_au * math.sin(anomaly),
+        )
+        for anomaly in transfer_eccentric_anomalies
     ]
+    transfer_x = [position[0] for position in transfer_path]
+    transfer_y = [position[1] for position in transfer_path]
     spacecraft_positions = []
     for index in range(frame_count):
         mean_anomaly = math.pi * index / (frame_count - 1)
@@ -297,11 +318,21 @@ def mission2_orbit_simulation(
             )
         )
 
+    body_names = ("지구", planet.name)
+    body_radii_au = {
+        "지구": EARTH_ORBIT_RADIUS_AU,
+        planet.name: planet.orbit_radius_au,
+    }
+    body_periods_days = {
+        "지구": DAYS_PER_YEAR,
+        planet.name: planet.orbital_period_days,
+    }
     transfer_duration_years = transfer_time_years(semi_major_axis_au)
-    destination_period_years = (
-        SIMULATION_ORBITAL_PERIOD_DAYS[planet.name] / DAYS_PER_YEAR
-    )
-    initial_phases = SIMULATION_REFERENCE_PHASE_RADIANS.copy()
+    destination_period_years = planet.orbital_period_years
+    initial_phases = {
+        body_name: SIMULATION_REFERENCE_PHASE_RADIANS[body_name]
+        for body_name in body_names
+    }
     initial_phases[planet.name] = (
         math.pi
         - 2 * math.pi * transfer_duration_years / destination_period_years
@@ -310,10 +341,9 @@ def mission2_orbit_simulation(
     for index in range(frame_count):
         elapsed_years = transfer_duration_years * index / (frame_count - 1)
         frame_positions: dict[str, tuple[float, float]] = {}
-        for body_name, radius_au in SIMULATION_ORBIT_RADII_AU.items():
-            period_years = (
-                SIMULATION_ORBITAL_PERIOD_DAYS[body_name] / DAYS_PER_YEAR
-            )
+        for body_name in body_names:
+            radius_au = body_radii_au[body_name]
+            period_years = body_periods_days[body_name] / DAYS_PER_YEAR
             angle = (
                 initial_phases[body_name]
                 + 2 * math.pi * elapsed_years / period_years
@@ -324,11 +354,12 @@ def mission2_orbit_simulation(
             )
         planet_positions_by_frame.append(frame_positions)
 
-    limit = SIMULATION_ORBIT_RADII_AU["토성"] * 1.12
+    limit = max(body_radii_au.values()) * 1.12
     frames: list[go.Frame] = []
     for index, planet_positions in enumerate(planet_positions_by_frame):
         spacecraft_x, spacecraft_y = spacecraft_positions[index]
         progress = index / (frame_count - 1)
+        elapsed_years = transfer_duration_years * progress
         frame_data: list[go.Scatter] = [
             go.Scatter(
                 x=[
@@ -346,12 +377,16 @@ def mission2_orbit_simulation(
             go.Scatter(
                 x=[spacecraft_x],
                 y=[spacecraft_y],
-                mode="markers",
+                mode="markers+text",
                 marker={
-                    "color": "#ffffff",
-                    "size": 12,
-                    "line": {"color": "#ff8c42", "width": 3},
+                    "color": "#ff8c42",
+                    "size": 17,
+                    "symbol": "star",
+                    "line": {"color": "#ffffff", "width": 1.5},
                 },
+                text=["🚀 우주선"],
+                textposition="top right",
+                textfont={"color": PLOT_FOREGROUND, "size": 12},
                 customdata=[progress],
                 hovertemplate=(
                     "우주선<br>x: %{x:.4f} AU"
@@ -361,7 +396,7 @@ def mission2_orbit_simulation(
                 name="우주선 현재 위치",
             ),
         ]
-        frame_trace_indexes = [6, 7]
+        frame_trace_indexes = [4, 5]
         for body_index, (body_name, (body_x, body_y)) in enumerate(
             planet_positions.items()
         ):
@@ -399,7 +434,7 @@ def mission2_orbit_simulation(
                     ),
                 ]
             )
-            frame_trace_indexes.extend([8 + body_index, 12 + body_index])
+            frame_trace_indexes.extend([6 + body_index, 8 + body_index])
         frames.append(
             go.Frame(
                 name=f"frame-{index}",
@@ -407,8 +442,16 @@ def mission2_orbit_simulation(
                 traces=frame_trace_indexes,
                 layout={
                     "images": _simulation_image_layout(
-                        {"태양": (0.0, 0.0), **planet_positions}
-                    )
+                        {"태양": (0.0, 0.0), **planet_positions},
+                        body_names,
+                    ),
+                    "title": {
+                        "text": _simulation_title(
+                            planet.name,
+                            elapsed_years,
+                            transfer_duration_years,
+                        )
+                    },
                 },
             )
         )
@@ -419,11 +462,11 @@ def mission2_orbit_simulation(
             *[
                 go.Scatter(
                     x=[
-                        SIMULATION_ORBIT_RADII_AU[body_name] * math.cos(angle)
+                        body_radii_au[body_name] * math.cos(angle)
                         for angle in circle_angles
                     ],
                     y=[
-                        SIMULATION_ORBIT_RADII_AU[body_name] * math.sin(angle)
+                        body_radii_au[body_name] * math.sin(angle)
                         for angle in circle_angles
                     ],
                     mode="lines",
@@ -436,7 +479,7 @@ def mission2_orbit_simulation(
                     if body_name != "지구"
                     else "지구 공전 궤도",
                 )
-                for body_name in SIMULATION_ORBIT_RADII_AU
+                for body_name in body_names
             ],
             go.Scatter(
                 x=transfer_x,
@@ -467,12 +510,16 @@ def mission2_orbit_simulation(
             go.Scatter(
                 x=[EARTH_ORBIT_RADIUS_AU],
                 y=[0],
-                mode="markers",
+                mode="markers+text",
                 marker={
-                    "color": "#ffffff",
-                    "size": 12,
-                    "line": {"color": "#ff8c42", "width": 3},
+                    "color": "#ff8c42",
+                    "size": 17,
+                    "symbol": "star",
+                    "line": {"color": "#ffffff", "width": 1.5},
                 },
+                text=["🚀 우주선"],
+                textposition="top right",
+                textfont={"color": PLOT_FOREGROUND, "size": 12},
                 name="우주선 현재 위치",
             ),
             *[
@@ -491,7 +538,7 @@ def mission2_orbit_simulation(
                     ),
                     name=f"{body_name} 현재 위치",
                 )
-                for body_name in SIMULATION_ORBIT_RADII_AU
+                for body_name in body_names
             ],
             *[
                 go.Scatter(
@@ -508,13 +555,19 @@ def mission2_orbit_simulation(
                     hoverinfo="skip",
                     showlegend=False,
                 )
-                for body_name in SIMULATION_ORBIT_RADII_AU
+                for body_name in body_names
             ],
         ],
         frames=frames,
     )
     figure.update_layout(
-        title=f"지구에서 {planet.name}으로의 호만 전이 궤도 시뮬레이션",
+        title={
+            "text": _simulation_title(
+                planet.name,
+                0.0,
+                transfer_duration_years,
+            )
+        },
         template="plotly_dark",
         paper_bgcolor=PLOT_BACKGROUND,
         plot_bgcolor=PLOT_BACKGROUND,
@@ -543,7 +596,8 @@ def mission2_orbit_simulation(
         height=620,
         margin={"l": 20, "r": 20, "t": 105, "b": 20},
         images=_simulation_image_layout(
-            {"태양": (0.0, 0.0), **initial_positions}
+            {"태양": (0.0, 0.0), **initial_positions},
+            body_names,
         ),
         updatemenus=[
             {
@@ -559,7 +613,7 @@ def mission2_orbit_simulation(
                         "args": [
                             None,
                             {
-                                "frame": {"duration": 60, "redraw": True},
+                                "frame": {"duration": 40, "redraw": True},
                                 "fromcurrent": True,
                                 "transition": {"duration": 0},
                             },
@@ -583,7 +637,7 @@ def mission2_orbit_simulation(
                         "args": [
                             None,
                             {
-                                "frame": {"duration": 60, "redraw": True},
+                                "frame": {"duration": 40, "redraw": True},
                                 "fromcurrent": False,
                                 "transition": {"duration": 0},
                             },

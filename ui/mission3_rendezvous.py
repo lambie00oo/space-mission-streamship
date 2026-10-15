@@ -110,12 +110,14 @@ export default function(component) {
   }
   state.data = data;
 
-  const width = 640;
+  const width = 520;
   const height = 520;
   const centerX = width / 2;
   const centerY = height / 2;
-  const limit = data.planet_radius_au * 1.32;
-  const scale = 205 / limit;
+  const plotPadding = 30;
+  const viewSize = width - 2 * plotPadding;
+  const limit = data.planet_radius_au * 1.12;
+  const scale = (viewSize / 2) / limit;
   const px = (x) => centerX + x * scale;
   const py = (y) => centerY - y * scale;
   const pathFromPoints = (points) => points.map((p, i) =>
@@ -126,16 +128,16 @@ export default function(component) {
     root.innerHTML = `
       <div class="rendezvous-layout">
         <div class="rendezvous-plot">
-          <svg viewBox="0 0 640 520" role="img" aria-label="태양 중심 전이 궤도 랑데부 시뮬레이션">
+          <svg viewBox="${plotPadding} ${plotPadding} ${viewSize} ${viewSize}" role="img" aria-label="태양 중심 전이 궤도 랑데부 시뮬레이션">
             <circle class="rendezvous-orbit" id="rendezvous-orbit"></circle>
             <path class="rendezvous-target" id="rendezvous-target"></path>
             <path class="rendezvous-transfer" id="rendezvous-transfer"></path>
-            <circle class="rendezvous-sun" cx="320" cy="260" r="9"></circle>
+            <circle class="rendezvous-sun" cx="${centerX}" cy="${centerY}" r="9"></circle>
             <circle class="rendezvous-earth" id="rendezvous-earth" r="6"></circle>
             <path class="rendezvous-transfer" id="rendezvous-trail" style="stroke:#50c8ff;stroke-width:2"></path>
             <circle class="rendezvous-ship" id="rendezvous-ship" r="7"></circle>
             <circle class="rendezvous-handle" id="rendezvous-planet" r="10" tabindex="0" role="slider"></circle>
-            <text class="rendezvous-label" x="332" y="255">태양</text>
+            <text class="rendezvous-label" x="${centerX + 12}" y="${centerY - 5}">태양</text>
             <text class="rendezvous-label" id="rendezvous-earth-label"></text>
             <text class="rendezvous-label" id="rendezvous-planet-label"></text>
             <text class="rendezvous-label" id="rendezvous-ship-label"></text>
@@ -246,6 +248,12 @@ export default function(component) {
       revision: state.revision,
     });
   };
+  const captureMissionCompletion = (event) => {
+    const button = event.target instanceof Element
+      ? event.target.closest('button')
+      : null;
+    if (button && button.textContent.trim() === '학습 완료') report();
+  };
   const setAngle = (newAngle) => {
     state.angle = wrap(newAngle);
     if (state.status === 'playing' || state.status === 'completed') {
@@ -340,6 +348,11 @@ export default function(component) {
       if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') setAngle(state.angle - 1);
       if (event.key === 'ArrowRight' || event.key === 'ArrowUp') setAngle(state.angle + 1);
     });
+    parentElement.ownerDocument.addEventListener(
+      'click',
+      captureMissionCompletion,
+      true,
+    );
     root.dataset.wired = 'true';
   }
   if (state.status === 'playing' && state.raf === null) {
@@ -349,7 +362,14 @@ export default function(component) {
     stopAnimation();
   }
   updateDisplay();
-  return () => stopAnimation();
+  return () => {
+    stopAnimation();
+    parentElement.ownerDocument.removeEventListener(
+      'click',
+      captureMissionCompletion,
+      true,
+    );
+  };
 }
 """
 
@@ -374,6 +394,12 @@ def _persist_rendezvous_state() -> None:
     st.session_state.m3_rendezvous_status = str(snapshot["status"])
     st.session_state.m3_rendezvous_progress = float(snapshot["progress"])
     st.session_state.m3_rendezvous_revision = int(snapshot["revision"])
+    st.session_state.m3_rendezvous_snapshot = {
+        "angle_degrees": float(snapshot["angle"]),
+        "status": str(snapshot["status"]),
+        "progress": float(snapshot["progress"]),
+        "revision": int(snapshot["revision"]),
+    }
 
 
 def _extract_simulation_data(

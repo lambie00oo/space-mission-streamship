@@ -90,13 +90,11 @@ def _render_step4() -> None:
 
 
 def render_mission1() -> None:
-    st.header("MISSION1: 부개연구소에서")
+    st.header("MISSION 1. 우주의 비밀을 밝혀라!")
     st.write(
-        "우주 탐사선에 탑승하기 전, 당신은 부개연구소의 우주 비행 사전 교육 과정을 이수해야 합니다. "
-        "교육을 마치면 화성 탐사 임무를 수행할 준비가 완료됩니다.  \n"
-        "부개연구소의 교육 과정을 이수하십시오."
+        "우주를 향한 탐험은 원리를 이해하는 것에서 시작된다. 타원의 모양과 초점, 행성의 공전 원리를 탐구하고 호만 전이 궤도의 기본 개념을 익혀, 미지의 우주로 나아가기 위한 첫걸음을 내디뎌라!"
     )
-
+    _render_step1()
     _render_step1()
     _render_step2()
     _render_step3()

@@ -5,7 +5,7 @@ import streamlit as st
 from data.planets import EARTH_ORBIT_RADIUS_AU, PLANETS
 from logic.orbit_calculations import (
     focus_distance,
-    semi_minor_axis,
+    semi_minor_axis_from_focus,
     transfer_eccentricity,
     transfer_semi_major_axis,
 )
@@ -13,7 +13,7 @@ from ui.formula_problems import (
     FormulaInput,
     render_formula_problem,
 )
-from ui.orbit_plot import mission2_orbit_simulation
+from ui.ellipse_design import render_ellipse_design
 
 
 ASSET_DIR = Path(__file__).resolve().parent.parent / "images"
@@ -128,6 +128,15 @@ def _on_planet_change() -> None:
         "m4_deflection_angle_submit",
         "m4_deflection_angle_eccentricity_input",
         "m4_deflection_angle_formula_input",
+        "m4_final_approach_input_context",
+        "m4_final_approach_soi",
+        "m4_final_approach_soi_formula_input",
+        "m4_final_approach_angular_momentum",
+        "m4_final_approach_angular_momentum_formula_input",
+        "m4_final_approach_energy",
+        "m4_final_approach_energy_formula_input",
+        "m4_final_approach_eccentricity",
+        "m4_final_approach_eccentricity_formula_input",
         "m4_complete",
     ):
         st.session_state.pop(key, None)
@@ -137,17 +146,9 @@ def _on_planet_change() -> None:
 
 
 def render_mission2() -> None:
-    st.header("MISSION 2: 호만 전이 궤도 설계")
-    st.caption("이론 교육 완료. 이제 실제 발사 임무를 시작한다.")
+    st.header("MISSION 2. 미지의 항로를 개척하라!")
     st.write(
-        "부개연구소에서의 사전 교육을 무사히 마친 여러분은 드디어 우주 탐사선에 탑승할 준비를 마쳤습니다. "
-        "하지만 행성으로 향하는 여정은 단순히 로켓을 발사한다고 성공하는 것이 아닙니다. "
-        "지구와 행성은 태양 주위를 계속 공전하고 있으며, 우주선이 도착할 때 행성이 어디에 있을지 예측해야 합니다.  \n"
-        "호만 전이 궤도의 원리를 활용해 두 행성의 위치와 이동 시간을 고려하고, 성공적인 발사 조건을 찾아보세요."
-    )
-    st.write(
-        "지구와 목적 행성의 궤도 반지름을 이용해 전이 타원의 크기와 모양을 계산합니다. "
-        "이 화면은 태양 중심의 2차원 원형 행성 궤도를 가정하는 교육용 모델입니다."
+        "미지의 행성을 향한 첫 여정이 시작된다. 타원의 성질을 탐구하고 우주선의 전이 궤도를 설계해, 미지의 세계로 나아갈 항로를 개척하라!"
     )
 
     planet_key = st.selectbox(
@@ -175,6 +176,20 @@ def render_mission2() -> None:
     st.caption(
         "아래 단계에서는 위에 제공된 행성 데이터를 이용해 각 값을 직접 계산합니다."
     )
+
+    with st.container(key="mission2-conditions", border=True):
+        st.subheader("조건")
+        st.markdown(
+            """
+            행성의 궤도 역학을 고려하여 우주선을 발사하는 것은 매우 복잡한 수학적 작업이므로. 이 작업을 단순화하기 위해 세 가지 가정을 세워야 합니다.
+
+            ⓵ 지구와 행성의 궤도는 원형이며 태양을 중심으로 한다.
+
+            ⓶ 지구와 행성은 일정한 속도로 움직인다.
+
+            ⓷ 지구와 행성의 궤도는 동일 평면상에 있다.
+            """
+        )
 
     with st.expander("타원 구성 요소 복습"):
         st.image(str(ASSET_DIR / "eclipse.png"), width=420)
@@ -294,32 +309,30 @@ def render_mission2() -> None:
         return
 
     st.success(f"초점 거리 c: {st.session_state.m2_c:.4f} AU")
-    with st.container(border=True):
-        st.subheader("STEP 2-3 · 전이 타원 확인")
-        semi_minor = semi_minor_axis(st.session_state.m2_a, st.session_state.m2_e)
-        st.write(
-            f"반단축 b = {semi_minor:.4f} AU · 초점 거리 c = "
-            f"{st.session_state.m2_c:.4f} AU"
+    st.subheader("STEP 2-3 · 전이 타원의 단반경 b")
+    st.latex(r"b = \sqrt{a^2 - c^2}")
+    try:
+        semi_minor = semi_minor_axis_from_focus(
+            st.session_state.m2_a,
+            st.session_state.m2_c,
         )
-        st.plotly_chart(
-            mission2_orbit_simulation(
-                planet,
-                st.session_state.m2_a,
-                st.session_state.m2_e,
-                st.session_state.m2_c,
-                semi_minor,
-            ),
-            key="mission2_orbit_simulation",
-            alt=f"지구에서 {planet.name}까지 계산된 호만 전이 궤도와 우주선 이동",
-        )
-        st.caption(
-            "행성의 표시 궤도 반지름은 평균 거리의 근삿값입니다. 행성 위치는 전이 시간에 맞춘 "
-            "이상화된 원궤도 모형이며 실시간 실제 위치가 아닙니다. 천체 이미지는 가독성을 위해 "
-            "확대되어 실제 크기 비율과 다릅니다."
-        )
+    except ValueError as error:
+        st.error(f"단반경을 계산할 수 없습니다: {error}")
+        return
+    st.write(
+        f"검증: a² > c² · "
+        f"{st.session_state.m2_a:.4f}² > {st.session_state.m2_c:.4f}²"
+    )
+    result_columns = st.columns(3)
+    result_columns[0].metric("장반경 a", f"{st.session_state.m2_a:.4f} AU")
+    result_columns[1].metric("단반경 b", f"{semi_minor:.4f} AU")
+    result_columns[2].metric("초점 거리 c", f"{st.session_state.m2_c:.4f} AU")
 
-        st.button(
-            "MISSION 2 궤도 확인 완료",
-            key="mission2_complete_button",
-            on_click=_complete_mission2,
-        )
+    st.subheader("STEP 2-4 · 타원 궤도 시각화")
+    render_ellipse_design()
+
+    st.button(
+        "MISSION 2 궤도 확인 완료",
+        key="mission2_complete_button",
+        on_click=_complete_mission2,
+    )

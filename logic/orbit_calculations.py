@@ -21,6 +21,17 @@ def semi_minor_axis(semi_major_axis_au: float, eccentricity: float) -> float:
     return semi_major_axis_au * math.sqrt(1 - eccentricity**2)
 
 
+def semi_minor_axis_from_focus(
+    semi_major_axis_au: float,
+    focus_distance_au: float,
+) -> float:
+    if not math.isfinite(semi_major_axis_au) or not math.isfinite(focus_distance_au):
+        raise ValueError("장반경 a와 초점 거리 c는 유한한 숫자여야 합니다.")
+    if semi_major_axis_au <= 0 or semi_major_axis_au**2 <= focus_distance_au**2:
+        raise ValueError("타원 조건 a² > c²를 만족해야 합니다.")
+    return math.sqrt(semi_major_axis_au**2 - focus_distance_au**2)
+
+
 def transfer_time_years(semi_major_axis_au: float) -> float:
     return math.sqrt(semi_major_axis_au**3) / 2
 

@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import streamlit as st
@@ -16,7 +17,7 @@ from ui.formula_problems import (
     FormulaInput,
     render_formula_problem,
 )
-from ui.mission3_rendezvous import render_rendezvous_simulation
+from ui.mission3_rendezvous import COMPONENT_KEY, render_rendezvous_simulation
 
 
 ASSET_DIR = Path(__file__).resolve().parent.parent / "images"
@@ -62,6 +63,53 @@ def _complete_mission3() -> None:
         st.error("MISSION 3의 필수 계산과 검증을 모두 완료해 주세요.")
         return
 
+    component_state = st.session_state.get(COMPONENT_KEY, {})
+    component_snapshot = (
+        component_state.get("snapshot")
+        if isinstance(component_state, dict)
+        else getattr(component_state, "snapshot", None)
+    )
+    if not isinstance(component_snapshot, dict):
+        component_snapshot = st.session_state.get("m3_rendezvous_snapshot")
+    if not isinstance(component_snapshot, dict):
+        component_snapshot = {}
+
+    try:
+        angle_degrees = float(
+            component_snapshot.get(
+                "angle",
+                st.session_state.m3_rendezvous_angle_degrees
+                if "m3_rendezvous_angle_degrees" in st.session_state
+                else st.session_state.m3_phase_angle,
+            )
+        )
+        progress = float(
+            component_snapshot.get(
+                "progress",
+                st.session_state.get("m3_rendezvous_progress", 0.0),
+            )
+        )
+    except (TypeError, ValueError):
+        st.error("MISSION 3의 최종 시뮬레이션 상태가 올바르지 않습니다.")
+        return
+    if (
+        not math.isfinite(angle_degrees)
+        or not math.isfinite(progress)
+        or not 0 <= progress <= 1
+    ):
+        st.error("MISSION 3의 최종 시뮬레이션 상태가 올바르지 않습니다.")
+        return
+
+    st.session_state.m3_final_approach_snapshot = {
+        "angle_degrees": angle_degrees % 360,
+        "progress": progress,
+        "status": str(
+            component_snapshot.get(
+                "status",
+                st.session_state.get("m3_rendezvous_status", "ready"),
+            )
+        ),
+    }
     st.session_state.m3_complete = True
     st.session_state.current_page = "MISSION4"
 
@@ -99,6 +147,17 @@ def _prepare_input_state(planet_name: str, semi_major_axis: float) -> None:
             "m3_rendezvous_progress",
             "m3_rendezvous_revision",
             "m3_rendezvous_component",
+            "m3_rendezvous_snapshot",
+            "m3_final_approach_snapshot",
+            "m4_final_approach_input_context",
+            "m4_final_approach_soi",
+            "m4_final_approach_soi_formula_input",
+            "m4_final_approach_angular_momentum",
+            "m4_final_approach_angular_momentum_formula_input",
+            "m4_final_approach_energy",
+            "m4_final_approach_energy_formula_input",
+            "m4_final_approach_eccentricity",
+            "m4_final_approach_eccentricity_formula_input",
         ):
             st.session_state.pop(key, None)
     st.session_state.mission3_input_context = context
@@ -106,10 +165,9 @@ def _prepare_input_state(planet_name: str, semi_major_axis: float) -> None:
 
 def _render_mission3_calculation(planet, semi_major_axis: float) -> None:
     _prepare_input_state(planet.name, semi_major_axis)
-    st.header("MISSION 3: 전이 시간 및 도착 위치 예측")
+    st.header("MISSION 3. 운명의 조우를 찾아라!")
     st.write(
-        "MISSION 2에서 설계한 타원을 따라 이동하는 시간을 구하고, "
-        "도착 시점의 행성 위치와 출발 위상각을 예측합니다."
+        "광활한 우주에서 목적 행성과 만나는 순간을 찾아야 한다. 우주선과 행성의 움직임을 추적하고 이동 시간과 위치를 분석해, 성공적인 만남을 위한 항해 계획을 완성하라!"
     )
     st.image(str(ASSET_DIR / "kepler.png"), width=460)
     st.subheader("계산에 사용할 데이터")
@@ -368,7 +426,7 @@ def render_mission3() -> None:
         not st.session_state.get("m2_complete", False)
         or not isinstance(result, dict)
     ):
-        st.header("MISSION 3: 전이 시간 및 도착 위치 예측")
+        st.header("MISSION 3. 운명의 조우를 찾아라!")
         st.info("MISSION2의 궤도 설계를 완료하면 다음 단계가 열립니다.")
         st.button(
             "MISSION2로 이동",

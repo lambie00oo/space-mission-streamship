@@ -54,6 +54,14 @@ class Mission3UiTests(unittest.TestCase):
 
         self.assertEqual(app.session_state["current_page"], "MISSION4")
         self.assertTrue(app.session_state["m3_complete"])
+        self.assertEqual(
+            app.session_state["m3_final_approach_snapshot"],
+            {
+                "angle_degrees": values["m3_phase_angle"],
+                "progress": 0.0,
+                "status": "ready",
+            },
+        )
         for key, value in values.items():
             self.assertEqual(app.session_state[key], value)
 
