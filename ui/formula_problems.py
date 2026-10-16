@@ -141,6 +141,7 @@ def render_formula_problem(
     result_unit: str,
     success_message: str,
     hints: tuple[str, ...],
+    formula_description: str | None = None,
 ) -> bool:
     """Render reactive formula inputs and submit the calculated result for checking."""
     if key in st.session_state:
@@ -152,6 +153,8 @@ def render_formula_problem(
     with st.container(border=True):
         st.markdown(f"**{title}**")
         st.latex(formula)
+        if formula_description:
+            st.markdown(formula_description)
         st.markdown("**필요한 값**")
         provided_values = "\n".join(
             f"- {item.label}: {item.format % item.provided_value} {item.unit}".rstrip()

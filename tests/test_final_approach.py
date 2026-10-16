@@ -8,6 +8,7 @@ from logic.final_approach import (
     GRAVITATIONAL_CONSTANT_KM3_PER_KG_S2,
     RendezvousPosition,
     SUN_MASS_KG,
+    closest_approach_to_sphere_of_influence,
     find_sphere_of_influence_entry,
     hyperbolic_orbit_from_entry,
     rendezvous_positions_at,
@@ -59,6 +60,10 @@ class FinalApproachTests(unittest.TestCase):
             FINAL_APPROACH_PLANET_DATA.items()
         ):
             with self.subTest(planet=planet_key):
+                self.assertEqual(
+                    distance_km,
+                    PLANETS[planet_key].orbit_radius_au * AU_TO_KM,
+                )
                 expected = distance_km * (mass_kg / SUN_MASS_KG) ** (2 / 5)
                 self.assertEqual(
                     sphere_of_influence_radius_km(distance_km, mass_kg),
@@ -146,15 +151,65 @@ class FinalApproachTests(unittest.TestCase):
                 )
 
     def test_non_crossing_mission3_path_does_not_report_entry(self) -> None:
-        planet, path, initial_angle, duration, _ = self._mission3_data(
-            "mars", 180.0
-        )
-        planet_orbit_km, mass_kg, _ = FINAL_APPROACH_PLANET_DATA["mars"]
-        soi_radius = sphere_of_influence_radius_km(planet_orbit_km, mass_kg)
-        self.assertIsNone(
-            find_sphere_of_influence_entry(
-                path, planet, initial_angle, duration, soi_radius
+        for planet_key in PLANETS:
+            planet, path, initial_angle, duration, _ = self._mission3_data(
+                planet_key, 180.0
             )
+            planet_orbit_km, planet_mass_kg, _ = FINAL_APPROACH_PLANET_DATA[
+                planet_key
+            ]
+            soi_radius = sphere_of_influence_radius_km(
+                planet_orbit_km,
+                planet_mass_kg,
+            )
+            with self.subTest(planet=planet_key):
+                self.assertIsNone(
+                    find_sphere_of_influence_entry(
+                        path,
+                        planet,
+                        initial_angle,
+                        duration,
+                        soi_radius,
+                    )
+                )
+                closest = closest_approach_to_sphere_of_influence(
+                    path,
+                    planet,
+                    initial_angle,
+                    duration,
+                    soi_radius,
+                )
+                self.assertIsNotNone(closest)
+                assert closest is not None
+                self.assertGreater(
+                    math.hypot(*closest.relative_position_km),
+                    soi_radius,
+                )
+
+    def test_valid_non_target_launch_angle_still_finds_entry(self) -> None:
+        planet, path, initial_angle, duration, _ = self._mission3_data(
+            "mars", 0.5
+        )
+        planet_orbit_km, planet_mass_kg, _ = FINAL_APPROACH_PLANET_DATA["mars"]
+        soi_radius = sphere_of_influence_radius_km(
+            planet_orbit_km,
+            planet_mass_kg,
+        )
+
+        entry = find_sphere_of_influence_entry(
+            path,
+            planet,
+            initial_angle,
+            duration,
+            soi_radius,
+        )
+
+        self.assertIsNotNone(entry)
+        assert entry is not None
+        self.assertAlmostEqual(
+            math.hypot(*entry.relative_position_km),
+            soi_radius,
+            delta=soi_radius * 1e-9,
         )
 
     def test_hyperbola_requires_positive_energy_and_eccentricity_above_one(self) -> None:

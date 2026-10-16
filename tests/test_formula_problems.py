@@ -176,6 +176,10 @@ class FormulaProblemTests(unittest.TestCase):
         mission4.run()
 
         self.assertFalse(mission4.exception)
+        self.assertEqual(
+            mission4.session_state["m4_final_approach_input_context"],
+            input_context,
+        )
         self.assertTrue(
             any(
                 metric.label == "계산된 영향권 반지름"
@@ -203,7 +207,7 @@ class FormulaProblemTests(unittest.TestCase):
         app.run()
         app.session_state["m4_final_approach_soi_formula_input"] = {
             "values": {
-                "planet_axis": "227900000",
+                "planet_axis": str(FINAL_APPROACH_PLANET_DATA["mars"][0]),
                 "planet_mass": "6.417e23",
                 "sun_mass": f"{SUN_MASS_KG:.4e}",
             }
@@ -219,6 +223,22 @@ class FormulaProblemTests(unittest.TestCase):
         )
         app.button(key="m4_final_approach_soi_check").click().run()
         self.assertTrue(app.session_state["m4_final_approach_soi"])
+
+    def test_mission4_reports_miss_distance_without_fabricating_entry(self) -> None:
+        app, input_context = self._mission4_app(180.0)
+        app.session_state["m4_final_approach_input_context"] = input_context
+        app.session_state["m4_final_approach_soi"] = True
+        app.run()
+
+        self.assertFalse(app.exception)
+        self.assertFalse(app.session_state["m4_final_approach_entered"])
+        self.assertTrue(
+            any(
+                "최소 거리:" in message.value
+                and "영향권 경계와의 차이:" in message.value
+                for message in app.warning
+            )
+        )
 
     def test_mission4_step4_formula_slots_recalculate_energy_and_eccentricity(self) -> None:
         planet_mass_kg, _, entry, angle = self._mars_entry()

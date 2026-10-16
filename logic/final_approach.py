@@ -3,16 +3,16 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from data.constants import AU_TO_KM
-from data.planets import Planet
+from data.planets import PLANETS, Planet
 
 
 SUN_MASS_KG: float = 1.989e30
 GRAVITATIONAL_CONSTANT_KM3_PER_KG_S2: float = 6.67430e-20
 SECONDS_PER_DAY: float = 86_400.0
 FINAL_APPROACH_PLANET_DATA: dict[str, tuple[float, float, float]] = {
-    "mars": (227_900_000, 6.417e23, 3389.5),
-    "jupiter": (778_600_000, 1.898e27, 69911.0),
-    "saturn": (1_434_000_000, 5.683e26, 58232.0),
+    "mars": (PLANETS["mars"].orbit_radius_au * AU_TO_KM, 6.417e23, 3389.5),
+    "jupiter": (PLANETS["jupiter"].orbit_radius_au * AU_TO_KM, 1.898e27, 69911.0),
+    "saturn": (PLANETS["saturn"].orbit_radius_au * AU_TO_KM, 5.683e26, 58232.0),
 }
 
 
@@ -199,7 +199,97 @@ def find_sphere_of_influence_entry(
             return entry_state
         previous_progress = current_progress
         previous_distance = current_distance
-    return None
+
+    closest = closest_approach_to_sphere_of_influence(
+        spacecraft_path_au,
+        planet,
+        initial_planet_angle_degrees,
+        transfer_days,
+        influence_radius_km,
+        samples=samples,
+    )
+    if closest is None:
+        return None
+    _, closest_distance = state_and_distance(closest.progress)
+    if closest_distance >= influence_radius_km:
+        return None
+    low = 0.0
+    high = closest.progress
+    for _ in range(60):
+        middle = (low + high) / 2
+        _, middle_distance = state_and_distance(middle)
+        if middle_distance <= influence_radius_km:
+            high = middle
+        else:
+            low = middle
+    entry_state, _ = state_and_distance(high)
+    return entry_state
+
+
+def closest_approach_to_sphere_of_influence(
+    spacecraft_path_au: Sequence[Sequence[float]],
+    planet: Planet,
+    initial_planet_angle_degrees: float,
+    transfer_days: float,
+    influence_radius_km: float,
+    *,
+    samples: int = 20_000,
+) -> RendezvousPosition | None:
+    if not math.isfinite(influence_radius_km) or influence_radius_km <= 0:
+        raise ValueError("영향권 반지름은 유한한 양수여야 합니다.")
+    if samples < 2:
+        raise ValueError("영향권 탐색 샘플은 2개 이상이어야 합니다.")
+
+    def state_and_distance(progress: float) -> tuple[RendezvousPosition, float]:
+        state = rendezvous_positions_at(
+            spacecraft_path_au,
+            progress,
+            initial_planet_angle_degrees,
+            transfer_days,
+            planet,
+        )
+        relative_x, relative_y = state.relative_position_km
+        return state, math.hypot(relative_x, relative_y)
+
+    best_state: RendezvousPosition | None = None
+    best_distance = math.inf
+    best_index = 0
+    for sample_index in range(samples + 1):
+        progress = sample_index / samples
+        state, distance = state_and_distance(progress)
+        if distance < best_distance:
+            best_distance = distance
+            best_state = state
+            best_index = sample_index
+    if best_state is None:
+        return None
+
+    low = max(0.0, (best_index - 1) / samples)
+    high = min(1.0, (best_index + 1) / samples)
+    ratio = (math.sqrt(5) - 1) / 2
+    left = high - ratio * (high - low)
+    right = low + ratio * (high - low)
+    _, left_distance = state_and_distance(left)
+    _, right_distance = state_and_distance(right)
+    for _ in range(80):
+        if left_distance <= right_distance:
+            high = right
+            right = left
+            right_distance = left_distance
+            left = high - ratio * (high - low)
+            _, left_distance = state_and_distance(left)
+        else:
+            low = left
+            left = right
+            left_distance = right_distance
+            right = low + ratio * (high - low)
+            _, right_distance = state_and_distance(right)
+
+    candidates = (best_state, state_and_distance(left)[0], state_and_distance(right)[0])
+    return min(
+        candidates,
+        key=lambda state: state_and_distance(state.progress)[1],
+    )
 
 
 def sphere_of_influence_status(

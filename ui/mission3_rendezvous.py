@@ -2,7 +2,14 @@ import math
 
 import streamlit as st
 
-from data.planets import Planet
+from data.constants import AU_TO_KM
+from data.planets import PLANETS, Planet
+from logic.final_approach import (
+    FINAL_APPROACH_PLANET_DATA,
+    closest_approach_to_sphere_of_influence,
+    find_sphere_of_influence_entry,
+    sphere_of_influence_radius_km,
+)
 from logic.rendezvous import (
     RENDEZVOUS_TOLERANCE_KM,
     fine_tune_angle_degrees,
@@ -473,7 +480,7 @@ def render_rendezvous_simulation(
         "transfer_days": transfer_days,
         "transfer_path": transfer_path,
         "spacecraft_path": spacecraft_path,
-        "au_to_km": 149_597_870.7,
+        "au_to_km": AU_TO_KM,
         "tolerance_km": RENDEZVOUS_TOLERANCE_KM,
         "animation_duration_ms": 12_000,
         "snapshot": snapshot,
@@ -504,3 +511,43 @@ def render_rendezvous_simulation(
         f"각도 차이: {angle_error:+.4f}° · "
         f"만남 판정 허용 오차: {RENDEZVOUS_TOLERANCE_KM:,.0f} km"
     )
+    planet_key = next(
+        key for key, selected_planet in PLANETS.items()
+        if selected_planet.name == planet.name
+    )
+    orbit_radius_km, planet_mass_kg, _ = FINAL_APPROACH_PLANET_DATA[planet_key]
+    influence_radius_km = sphere_of_influence_radius_km(
+        orbit_radius_km,
+        planet_mass_kg,
+    )
+    entry = find_sphere_of_influence_entry(
+        spacecraft_path,
+        planet,
+        current_angle,
+        transfer_days,
+        influence_radius_km,
+    )
+    if entry is not None:
+        st.success(
+            f"현재 발사 각도 {current_angle % 360:.4f}°에서는 "
+            f"{planet.name}의 영향권에 진입합니다. "
+            f"예상 진입 시각: {entry.elapsed_days:.4f}일"
+        )
+    else:
+        closest = closest_approach_to_sphere_of_influence(
+            spacecraft_path,
+            planet,
+            current_angle,
+            transfer_days,
+            influence_radius_km,
+        )
+        if closest is None:
+            st.error(f"{planet.name} 영향권 접근 거리를 계산할 수 없습니다.")
+        else:
+            closest_distance_km = math.hypot(*closest.relative_position_km)
+            st.warning(
+                f"현재 발사 각도 {current_angle % 360:.4f}°에서는 "
+                f"{planet.name} 영향권에 진입하지 않습니다. "
+                f"최소 접근 거리 {closest_distance_km:,.0f} km "
+                f"(영향권 반지름 {influence_radius_km:,.0f} km)"
+            )

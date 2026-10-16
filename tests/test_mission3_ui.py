@@ -15,8 +15,10 @@ class Mission3UiTests(unittest.TestCase):
             "m3_travel_angle": 127.8,
             "m3_phase_angle": 52.2,
         }
+        selected_angle = 73.456
         app.session_state["current_page"] = "MISSION3"
         app.session_state["selected_planet"] = "mars"
+        app.session_state["m3_rendezvous_angle_degrees"] = selected_angle
         app.session_state["m2_complete"] = True
         app.session_state["m2_result"] = {
             "planet_key": "mars",
@@ -43,11 +45,18 @@ class Mission3UiTests(unittest.TestCase):
         self.assertIn("m3_rendezvous_component", app.session_state)
         self.assertEqual(
             app.session_state["m3_rendezvous_component"]["snapshot"]["angle"],
-            values["m3_phase_angle"],
+            selected_angle,
         )
         self.assertEqual(
             app.session_state["m3_rendezvous_component"]["snapshot"]["status"],
             "ready",
+        )
+        self.assertTrue(
+            any(
+                f"현재 발사 각도 {selected_angle:.4f}°에서는"
+                in message.value
+                for message in app.warning
+            )
         )
 
         app.button(key="mission3_complete_button").click().run()
@@ -57,7 +66,7 @@ class Mission3UiTests(unittest.TestCase):
         self.assertEqual(
             app.session_state["m3_final_approach_snapshot"],
             {
-                "angle_degrees": values["m3_phase_angle"],
+                "angle_degrees": selected_angle,
                 "progress": 0.0,
                 "status": "ready",
             },
